@@ -1,3 +1,6 @@
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+
 export default function HomePage() {
   return (
     <main className="min-h-screen bg-white text-neutral-900">
@@ -15,14 +18,19 @@ export default function HomePage() {
             Know what to do with your money before you spend it.
           </p>
 
+          <div className="mt-8 flex items-center justify-center">
+            <Button asChild size="lg" className="rounded-xl">
+              <Link href="/dashboard">View app preview</Link>
+            </Button>
+          </div>
+
           <div className="mt-10 rounded-2xl border border-neutral-200 bg-neutral-50 p-6 text-left shadow-sm">
             <h2 className="text-lg font-semibold text-neutral-900">
               Foundation build complete
             </h2>
             <p className="mt-2 text-sm leading-6 text-neutral-600">
-              Your Next.js app is running. Next, we will connect Supabase,
-              create authentication, and start building the real application
-              shell.
+              Next, we will connect Supabase, set up authentication, and start
+              building the real application shell.
             </p>
           </div>
         </div>
