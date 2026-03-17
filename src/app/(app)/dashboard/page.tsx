@@ -32,6 +32,7 @@ export default async function DashboardPage() {
   let billCount = 0;
   let transactionCount = 0;
   let nextPaycheckAmount: number | null = null;
+  let nextPaycheckLabel: string | null = null;
 
   if (householdId) {
     const { data: household } = await supabase
@@ -64,15 +65,19 @@ export default async function DashboardPage() {
 
     transactionCount = transactionsCountResult ?? 0;
 
-    const { data: incomeSource } = await supabase
-      .from("income_sources")
-      .select("amount")
-      .eq("household_id", householdId)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const today = new Date().toISOString().split("T")[0];
 
-    nextPaycheckAmount = incomeSource?.amount ?? null;
+const { data: incomeSource } = await supabase
+  .from("income_sources")
+  .select("amount, next_pay_date, name")
+  .eq("household_id", householdId)
+  .gte("next_pay_date", today)
+  .order("next_pay_date", { ascending: true })
+  .limit(1)
+  .maybeSingle();
+
+nextPaycheckAmount = incomeSource?.amount ?? null;
+nextPaycheckLabel = incomeSource?.next_pay_date ?? null;
   }
 
   return (
@@ -145,8 +150,10 @@ export default async function DashboardPage() {
                 : "$0.00"}
             </p>
             <p className="mt-2 text-sm text-neutral-500">
-              First saved income source amount.
-            </p>
+  {nextPaycheckLabel
+    ? `Upcoming pay date: ${nextPaycheckLabel}`
+    : "No upcoming pay date found."}
+</p>
           </CardContent>
         </Card>
 
