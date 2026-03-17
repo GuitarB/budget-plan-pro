@@ -1,6 +1,7 @@
+import { createClient } from "@/lib/supabase/server";
+import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { createClient } from "@/lib/supabase/server";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -9,22 +10,53 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("id, email, full_name, created_at")
+    .eq("id", user.id)
+    .single();
+
   return (
     <AppShell
       title="Dashboard"
       description="Your household money command center will live here."
     >
-      <div className="mb-6 rounded-2xl border border-dashed border-neutral-300 bg-white p-4">
+      <div className="mb-6 rounded-2xl border border-neutral-200 bg-white p-4 shadow-sm">
         <p className="text-sm text-neutral-600">
           Supabase connection status:{" "}
           <span className="font-semibold text-neutral-900">Connected</span>
         </p>
+
         <p className="mt-2 text-sm text-neutral-600">
-          Current user:{" "}
+          Current auth user:{" "}
+          <span className="font-semibold text-neutral-900">{user.email}</span>
+        </p>
+
+        <p className="mt-2 text-sm text-neutral-600">
+          Profile row:{" "}
           <span className="font-semibold text-neutral-900">
-            {user?.email ?? "Not signed in"}
+            {profile ? "Found" : "Missing"}
           </span>
         </p>
+
+        {profile ? (
+          <p className="mt-2 text-sm text-neutral-600">
+            Profile email:{" "}
+            <span className="font-semibold text-neutral-900">
+              {profile.email}
+            </span>
+          </p>
+        ) : null}
+
+        {profileError ? (
+          <p className="mt-2 text-sm text-red-600">
+            Profile error: {profileError.message}
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
@@ -70,7 +102,7 @@ export default async function DashboardPage() {
           </CardHeader>
           <CardContent>
             <p className="text-sm text-neutral-600">
-              Your weekly guidance and recommendations will appear here.
+              Your weekly guidance will appear here.
             </p>
           </CardContent>
         </Card>

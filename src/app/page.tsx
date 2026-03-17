@@ -18,8 +18,16 @@ export default function HomePage() {
             Know what to do with your money before you spend it.
           </p>
 
-          <div className="mt-8 flex items-center justify-center">
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
             <Button asChild size="lg" className="rounded-xl">
+              <Link href="/signup">Create account</Link>
+            </Button>
+
+            <Button asChild size="lg" variant="outline" className="rounded-xl">
+              <Link href="/login">Sign in</Link>
+            </Button>
+
+            <Button asChild size="lg" variant="ghost" className="rounded-xl">
               <Link href="/dashboard">View app preview</Link>
             </Button>
           </div>
