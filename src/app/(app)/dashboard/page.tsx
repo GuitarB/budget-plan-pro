@@ -27,7 +27,11 @@ export default async function DashboardPage() {
 
   const householdId = memberships?.[0]?.household_id ?? null;
 
-  let householdName = null;
+  let householdName: string | null = null;
+  let accountCount = 0;
+  let billCount = 0;
+  let transactionCount = 0;
+  let nextPaycheckAmount: number | null = null;
 
   if (householdId) {
     const { data: household } = await supabase
@@ -37,6 +41,38 @@ export default async function DashboardPage() {
       .single();
 
     householdName = household?.name ?? null;
+
+    const { count: accountsCountResult } = await supabase
+      .from("accounts")
+      .select("*", { count: "exact", head: true })
+      .eq("household_id", householdId);
+
+    accountCount = accountsCountResult ?? 0;
+
+    const { count: billsCountResult } = await supabase
+      .from("bills")
+      .select("*", { count: "exact", head: true })
+      .eq("household_id", householdId)
+      .eq("is_active", true);
+
+    billCount = billsCountResult ?? 0;
+
+    const { count: transactionsCountResult } = await supabase
+      .from("transactions")
+      .select("*", { count: "exact", head: true })
+      .eq("household_id", householdId);
+
+    transactionCount = transactionsCountResult ?? 0;
+
+    const { data: incomeSource } = await supabase
+      .from("income_sources")
+      .select("amount")
+      .eq("household_id", householdId)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    nextPaycheckAmount = incomeSource?.amount ?? null;
   }
 
   return (
@@ -88,12 +124,12 @@ export default async function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <Card className="rounded-2xl">
           <CardHeader>
-            <CardTitle>Safe to Spend</CardTitle>
+            <CardTitle>Accounts</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">$0.00</p>
+            <p className="text-3xl font-bold">{accountCount}</p>
             <p className="mt-2 text-sm text-neutral-500">
-              This will become a live planning number.
+              Financial accounts in this household.
             </p>
           </CardContent>
         </Card>
@@ -103,32 +139,37 @@ export default async function DashboardPage() {
             <CardTitle>Next Paycheck</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">$0.00</p>
+            <p className="text-3xl font-bold">
+              {nextPaycheckAmount !== null
+                ? `$${nextPaycheckAmount.toFixed(2)}`
+                : "$0.00"}
+            </p>
             <p className="mt-2 text-sm text-neutral-500">
-              Your next income event will appear here.
+              First saved income source amount.
             </p>
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl">
           <CardHeader>
-            <CardTitle>Bills Due Soon</CardTitle>
+            <CardTitle>Active Bills</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">0</p>
+            <p className="text-3xl font-bold">{billCount}</p>
             <p className="mt-2 text-sm text-neutral-500">
-              Upcoming bills before the next paycheck.
+              Recurring bills currently active.
             </p>
           </CardContent>
         </Card>
 
         <Card className="rounded-2xl">
           <CardHeader>
-            <CardTitle>AI Coach</CardTitle>
+            <CardTitle>Transactions</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-neutral-600">
-              Your weekly guidance will appear here.
+            <p className="text-3xl font-bold">{transactionCount}</p>
+            <p className="mt-2 text-sm text-neutral-500">
+              Transactions recorded for this household.
             </p>
           </CardContent>
         </Card>
