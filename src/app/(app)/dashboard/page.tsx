@@ -20,6 +20,25 @@ export default async function DashboardPage() {
     .eq("id", user.id)
     .single();
 
+  const { data: memberships } = await supabase
+    .from("household_members")
+    .select("household_id, role")
+    .eq("user_id", user.id);
+
+  const householdId = memberships?.[0]?.household_id ?? null;
+
+  let householdName = null;
+
+  if (householdId) {
+    const { data: household } = await supabase
+      .from("households")
+      .select("name")
+      .eq("id", householdId)
+      .single();
+
+    householdName = household?.name ?? null;
+  }
+
   return (
     <AppShell
       title="Dashboard"
@@ -51,6 +70,13 @@ export default async function DashboardPage() {
             </span>
           </p>
         ) : null}
+
+        <p className="mt-2 text-sm text-neutral-600">
+          Household:{" "}
+          <span className="font-semibold text-neutral-900">
+            {householdName ?? "None"}
+          </span>
+        </p>
 
         {profileError ? (
           <p className="mt-2 text-sm text-red-600">
