@@ -3,6 +3,10 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/app-shell";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
+function formatCurrency(value: number) {
+  return `$${value.toFixed(2)}`;
+}
+
 export default async function DashboardPage() {
   const supabase = await createClient();
 
@@ -33,6 +37,9 @@ export default async function DashboardPage() {
   let transactionCount = 0;
   let nextPaycheckAmount: number | null = null;
   let nextPaycheckLabel: string | null = null;
+  let safeToSpend = 0;
+  let cashBalanceTotal = 0;
+  let billsDueBeforePaycheckTotal = 0;
 
   if (householdId) {
     const { data: household } = await supabase
@@ -65,19 +72,72 @@ export default async function DashboardPage() {
 
     transactionCount = transactionsCountResult ?? 0;
 
-    const today = new Date().toISOString().split("T")[0];
+    const today = new Date();
+    const todayIso = today.toISOString().split("T")[0];
+    const todayDay = today.getDate();
 
-const { data: incomeSource } = await supabase
-  .from("income_sources")
-  .select("amount, next_pay_date, name")
-  .eq("household_id", householdId)
-  .gte("next_pay_date", today)
-  .order("next_pay_date", { ascending: true })
-  .limit(1)
-  .maybeSingle();
+    const { data: incomeSource } = await supabase
+      .from("income_sources")
+      .select("amount, next_pay_date, name")
+      .eq("household_id", householdId)
+      .gte("next_pay_date", todayIso)
+      .order("next_pay_date", { ascending: true })
+      .limit(1)
+      .maybeSingle();
 
-nextPaycheckAmount = incomeSource?.amount ?? null;
-nextPaycheckLabel = incomeSource?.next_pay_date ?? null;
+    nextPaycheckAmount = incomeSource?.amount ?? null;
+    nextPaycheckLabel = incomeSource?.next_pay_date ?? null;
+
+    const { data: cashAccounts } = await supabase
+      .from("accounts")
+      .select("balance, type")
+      .eq("household_id", householdId)
+      .in("type", ["checking", "savings", "cash"]);
+
+    cashBalanceTotal =
+      cashAccounts?.reduce((sum, account) => {
+        return sum + Number(account.balance ?? 0);
+      }, 0) ?? 0;
+
+    const { data: activeBills } = await supabase
+      .from("bills")
+      .select("amount, due_day, is_active")
+      .eq("household_id", householdId)
+      .eq("is_active", true);
+
+    if (nextPaycheckLabel) {
+      const paycheckDate = new Date(`${nextPaycheckLabel}T00:00:00`);
+      const paycheckDay = paycheckDate.getDate();
+      const sameMonth =
+        paycheckDate.getMonth() === today.getMonth() &&
+        paycheckDate.getFullYear() === today.getFullYear();
+
+      if (sameMonth) {
+        billsDueBeforePaycheckTotal =
+          activeBills?.reduce((sum, bill) => {
+            const dueDay = Number(bill.due_day ?? 0);
+
+            if (dueDay >= todayDay && dueDay < paycheckDay) {
+              return sum + Number(bill.amount ?? 0);
+            }
+
+            return sum;
+          }, 0) ?? 0;
+      } else {
+        billsDueBeforePaycheckTotal =
+          activeBills?.reduce((sum, bill) => {
+            const dueDay = Number(bill.due_day ?? 0);
+
+            if (dueDay >= todayDay || dueDay < paycheckDay) {
+              return sum + Number(bill.amount ?? 0);
+            }
+
+            return sum;
+          }, 0) ?? 0;
+      }
+    }
+
+    safeToSpend = cashBalanceTotal - billsDueBeforePaycheckTotal;
   }
 
   return (
@@ -129,12 +189,12 @@ nextPaycheckLabel = incomeSource?.next_pay_date ?? null;
       <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         <Card className="rounded-2xl">
           <CardHeader>
-            <CardTitle>Accounts</CardTitle>
+            <CardTitle>Safe to Spend</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{accountCount}</p>
+            <p className="text-3xl font-bold">{formatCurrency(safeToSpend)}</p>
             <p className="mt-2 text-sm text-neutral-500">
-              Financial accounts in this household.
+              Cash balances minus bills due before next paycheck.
             </p>
           </CardContent>
         </Card>
@@ -146,14 +206,14 @@ nextPaycheckLabel = incomeSource?.next_pay_date ?? null;
           <CardContent>
             <p className="text-3xl font-bold">
               {nextPaycheckAmount !== null
-                ? `$${nextPaycheckAmount.toFixed(2)}`
+                ? formatCurrency(nextPaycheckAmount)
                 : "$0.00"}
             </p>
             <p className="mt-2 text-sm text-neutral-500">
-  {nextPaycheckLabel
-    ? `Upcoming pay date: ${nextPaycheckLabel}`
-    : "No upcoming pay date found."}
-</p>
+              {nextPaycheckLabel
+                ? `Upcoming pay date: ${nextPaycheckLabel}`
+                : "No upcoming pay date found."}
+            </p>
           </CardContent>
         </Card>
 
@@ -177,6 +237,36 @@ nextPaycheckLabel = incomeSource?.next_pay_date ?? null;
             <p className="text-3xl font-bold">{transactionCount}</p>
             <p className="mt-2 text-sm text-neutral-500">
               Transactions recorded for this household.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="mt-6 grid gap-6 md:grid-cols-2">
+        <Card className="rounded-2xl">
+          <CardHeader>
+            <CardTitle>Cash Available</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              {formatCurrency(cashBalanceTotal)}
+            </p>
+            <p className="mt-2 text-sm text-neutral-500">
+              Total of checking, savings, and cash accounts.
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="rounded-2xl">
+          <CardHeader>
+            <CardTitle>Bills Due Before Paycheck</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-2xl font-bold">
+              {formatCurrency(billsDueBeforePaycheckTotal)}
+            </p>
+            <p className="mt-2 text-sm text-neutral-500">
+              Active bills estimated to hit before the next paycheck.
             </p>
           </CardContent>
         </Card>
